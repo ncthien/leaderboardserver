@@ -134,9 +134,10 @@ LeaderboardServer.prototype.start = function()
 		console.log("Redis Error: " + err);
 	});
 	
-	var serverPort = process.env.SERVER_PORT || this.config.serverPort;
+	var serverPort = process.env.PORT || this.config.serverPort;
 	
-    this.socketServer = new WebSocket.Server({ port: serverPort});
+    //this.socketServer = new WebSocket.Server({ port: serverPort});
+	this.socketServer = new WebSocket.Server({server});
     this.socketServer.on('connection', connectionEstablished.bind(this));
 	
     this.socketServer.on('error', function err(e) 
