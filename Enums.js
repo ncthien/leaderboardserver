@@ -1,3 +1,4 @@
+//Type of messages (should be the same for both client and server)
 global.MessageIdEnum = Object.freeze({
 	"SEND_SCORE":0, 
 	"NOTIFY_SCORE":1, 

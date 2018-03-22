@@ -1,5 +1,6 @@
 require('./Enums.js');
 
+//Class to handle message from client
 function MessageHandler(server, socket) 
 {
     this.server = server;
@@ -16,6 +17,7 @@ MessageHandler.prototype.handleMessage = function(message)
 	
 	switch (messageId) 
 	{
+		//Send score from client
 		case MessageIdEnum.SEND_SCORE:
 			console.log("SEND_SCORE");
 			
@@ -26,6 +28,7 @@ MessageHandler.prototype.handleMessage = function(message)
 			this.server.sendScore(this.socket, name, score);
 			break;
 			
+		//Leaderboard request from client
 		case MessageIdEnum.REQUEST_LEADERBOARD:
 			console.log("REQUEST_LEADERBOARD");
 			
@@ -33,6 +36,7 @@ MessageHandler.prototype.handleMessage = function(message)
 			this.server.requestLeaderboard(this.socket, count);
 			break;
 			
+		//Highscore request from client
 		case MessageIdEnum.REQUEST_SCORE:
 			console.log("REQUEST_SCORE");
 			

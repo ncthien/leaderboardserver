@@ -9,12 +9,14 @@ var MessageHandler = require('./MessageHandler');
 
 const leaderboardName = "leaderboard";
 
+//Main class for the server
 function LeaderboardServer() 
 {
     this.isRunning = true;
 	
 	this.clients = [];
 
+	//Load config from ini file
 	this.config = {};
     this.loadConfig();
 
@@ -31,6 +33,7 @@ LeaderboardServer.prototype.addLuaScript = function(name, hash)
 
 LeaderboardServer.prototype.start = function()
 {
+	//Init HTTP server
 	this.app = express();
 	
 	var webServerPort = process.env.PORT || this.config.webServerPort;
@@ -41,6 +44,7 @@ LeaderboardServer.prototype.start = function()
 	  console.log("Web service listening at port %s", port);
 	});
 	
+	//Return how many times a user updated their score
 	this.app.get('/users/:userName/update_count', function(req, res)
 	{
 		var name = req.params.userName;
@@ -58,6 +62,7 @@ LeaderboardServer.prototype.start = function()
 			});
 	}.bind(this));
 	
+	//Return how many users updated their score in a time window
 	this.app.get('/update_log/:start-:end', function(req, res)
 	{
 		var startTime = parseInt(req.params.start);
@@ -70,6 +75,7 @@ LeaderboardServer.prototype.start = function()
 				}
 				else 
 				{
+					//generate a dictionary of unique names (with number of appearances)
 					var countMap = {};
 					
 					var len = reply.length;
@@ -85,6 +91,7 @@ LeaderboardServer.prototype.start = function()
 			});
 	}.bind(this));
 	
+	//Delete a user
 	this.app.delete('/users/:userName', function(req, res)
 	{
 		var name = req.params.userName;
@@ -102,11 +109,12 @@ LeaderboardServer.prototype.start = function()
 			});
 	}.bind(this));
 	
+	//Connect to Redis server
 	var redisPort = process.env.REDIS_PORT || this.config.redisPort;
 	var redisHost = process.env.REDIS_HOST || this.config.redisHost;
 	
-	this.redisClient = redis.createClient(redisPort, redisHost, {return_buffers:true});
-	this.redisSubClient = redis.createClient(redisPort, redisHost, {return_buffers:true});
+	this.redisClient = redis.createClient(redisPort, redisHost, {return_buffers:true}); //Normal Redis client
+	this.redisSubClient = redis.createClient(redisPort, redisHost, {return_buffers:true}); //Pub/sub Redis client
 	
 	var redisPass = process.env.REDIS_PASS || this.config.redisPass;
 	if (redisPass)
@@ -126,14 +134,16 @@ LeaderboardServer.prototype.start = function()
 		}
 	});
 	
-	this.loadLuaScript("send_score", this.addLuaScript.bind(this));	
-	this.loadLuaScript("delete_user", this.addLuaScript.bind(this));	
+	//Upload some Lua scripts to Redis server
+	this.loadLuaScript("send_score", this.addLuaScript.bind(this));	//send a highscore to Redis
+	this.loadLuaScript("delete_user", this.addLuaScript.bind(this)); //delete a user on Redis	
 
 	this.redisClient.on("error", function (err) 
 	{
 		console.log("Redis Error: " + err);
 	});
 	
+	//Init WebSocket server
 	var serverPort = process.env.PORT || this.config.serverPort;
 	
     //this.socketServer = new WebSocket.Server({ port: serverPort});
@@ -160,6 +170,7 @@ LeaderboardServer.prototype.start = function()
 
     function connectionEstablished(ws) 
 	{
+		//Don't allow too many connections
         if (this.clients.length >= this.serverMaxConnections)
 		{ 
 			console.log("Error: Server full");
@@ -181,6 +192,7 @@ LeaderboardServer.prototype.start = function()
         ws.remoteAddress = ws._socket.remoteAddress;
         ws.remotePort = ws._socket.remotePort;
 
+		//Add callback to handle WebSocket messages from clients
         ws.messageHandler = new MessageHandler(this, ws);
         ws.on('message', ws.messageHandler.handleMessage.bind(ws.messageHandler));
 
@@ -191,6 +203,7 @@ LeaderboardServer.prototype.start = function()
         this.clients.push(ws);
     }
 	
+	//Handle publish message from Redis
 	this.redisSubClient.on("message", function(channelBuf, message) 
 	{
 		var channel = channelBuf.toString();
@@ -217,6 +230,7 @@ LeaderboardServer.prototype.start = function()
 	this.subscribe();
 };
 
+//Load config from ini file
 LeaderboardServer.prototype.loadConfig = function() 
 {
 	try 
@@ -231,6 +245,7 @@ LeaderboardServer.prototype.loadConfig = function()
     }
 };
 
+//Load and save hash of a Lua script
 LeaderboardServer.prototype.loadLuaScript = function(name, callback, replaceValues)
 {
 	try 
@@ -264,6 +279,7 @@ LeaderboardServer.prototype.loadLuaScript = function(name, callback, replaceValu
     }
 }
 
+//Get cached hash of a Lua script
 LeaderboardServer.prototype.getLuaScriptHash = function(name) 
 {
 	var hash = this.luaScripts[name];
@@ -272,6 +288,7 @@ LeaderboardServer.prototype.getLuaScriptHash = function(name)
 	return hash;
 }
 
+//Subscribe to Redis server
 LeaderboardServer.prototype.subscribe = function() 
 {
 	this.redisSubClient.subscribe(leaderboardName, function(err, reply) 
@@ -281,6 +298,7 @@ LeaderboardServer.prototype.subscribe = function()
 	});
 }
 
+//Unsubscribe from Redis server
 LeaderboardServer.prototype.unsubscribe = function() 
 {
 	this.redisSubClient.unsubscribe(leaderboardName, function(err, reply) 
@@ -290,6 +308,7 @@ LeaderboardServer.prototype.unsubscribe = function()
 	});
 }
 
+//Send a new score to Redis
 LeaderboardServer.prototype.sendScore = function(ws, name, score)
 {
 	var time = ~~(Date.now() / 1000)
@@ -304,30 +323,35 @@ LeaderboardServer.prototype.sendScore = function(ws, name, score)
 		{
 			if (reply)
 			{
+				//If this is a highscore for the user, send back reply
 				this.replyScore(ws, score);
 			}
 		}
 	}.bind(this));
 }
 
+//Query how many times a user updated their score from Redis
 LeaderboardServer.prototype.countUserUpdate = function(name, callback)
 {
 	console.log("COUNT_USER_UPDATE " + name);
 	this.redisClient.get("C|" + name, callback);
 }
 
+//Query list of update logs in a time window from Redis
 LeaderboardServer.prototype.listUpdate = function(timeStart, timeEnd, callback)
 {
 	console.log("LIST_UPDATE " + timeStart + " " + timeEnd);
 	this.redisClient.zrangebyscore("L|" + leaderboardName, timeStart, timeEnd, callback);
 }
 
+//Delete a user from Redis
 LeaderboardServer.prototype.deleteUser = function(name, callback)
 {
 	console.log("DELETE_USER " + name);
 	this.redisClient.evalsha(this.getLuaScriptHash("delete_user"), 2, leaderboardName, name, callback);
 }
 
+//Get current leaderboard from Redis
 LeaderboardServer.prototype.requestLeaderboard = function(ws, count)
 {
 	console.log("REQUEST_LEADERBOARD " + count);
@@ -344,6 +368,7 @@ LeaderboardServer.prototype.requestLeaderboard = function(ws, count)
 	}.bind(this));
 }
 
+//Send leaderboard to client
 LeaderboardServer.prototype.replyLeaderboard = function(ws, arr)
 {
 	var names = [];
@@ -354,6 +379,7 @@ LeaderboardServer.prototype.replyLeaderboard = function(ws, arr)
 	
 	console.log("REPLY_LEADERBOARD");
 	
+	//Parse names and scores from buffer returned by Redis
 	var len = arr.length;
 	for (var i = 0; i < len; i += 2)
 	{
@@ -371,6 +397,7 @@ LeaderboardServer.prototype.replyLeaderboard = function(ws, arr)
 		numItems++;
 	}
 	
+	//Assemble reply message for client
 	var buf = new Buffer(bufLen);
 	buf.writeUInt8(MessageIdEnum.REPLY_LEADERBOARD, 0);
 	
@@ -395,6 +422,7 @@ LeaderboardServer.prototype.replyLeaderboard = function(ws, arr)
 	ws.sendMessage(buf);
 }
 
+//Get highscore of a user from Redis
 LeaderboardServer.prototype.requestScore = function(ws, name)
 {
 	console.log("REQUEST_SCORE " + name);
@@ -415,6 +443,7 @@ LeaderboardServer.prototype.requestScore = function(ws, name)
 	}.bind(this));
 }
 
+//Send highscore to client
 LeaderboardServer.prototype.replyScore = function(ws, score)
 {
 	var buf = new Buffer(5);
@@ -424,6 +453,7 @@ LeaderboardServer.prototype.replyScore = function(ws, score)
 	ws.sendMessage(buf);
 }
 
+//Broadcast a message to all clients
 LeaderboardServer.prototype.sendMessage = function(buf)
 {
 	for (var i = 0; i < this.clients.length; ++i) 
@@ -435,6 +465,7 @@ LeaderboardServer.prototype.sendMessage = function(buf)
 	}
 }
 
+//Send a message to a client
 WebSocket.prototype.sendMessage = function(buf) 
 {
 	if (this.readyState == WebSocket.OPEN) 
