@@ -33,7 +33,7 @@ LeaderboardServer.prototype.start = function()
 {
 	this.app = express();
 	
-	var webServerPort = process.env.WEB_SERVER_PORT || this.config.webServerPort;
+	var webServerPort = process.env.PORT || this.config.webServerPort;
 	
 	var server = this.app.listen(webServerPort, function()
 	{
