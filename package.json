@@ -1,0 +1,19 @@
+{
+  "name": "leaderboard-server-test-ct",
+  "version": "0.0.1",
+  "description": "Test leaderboard server",
+  "author": "Nguyen Chi Thien <chithien.nguyen@gmail.com>",
+  "license": "MIT",
+  "main": "./index.js",
+  "engines": {
+    "node": ">=6.10.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "4.16.3",
+    "redis": "2.8.0",
+    "ws": "5.1.0"
+  }
+}
